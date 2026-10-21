@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>馬茲提卡 - 曜日競技場</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --gold: #d4af37; --bg-dark: rgba(15, 12, 10, 0.9); --text: #e0d0b0; }
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            font-family: 'Noto Serif TC', serif; 
+            display: flex; justify-content: center; align-items: center; 
+            background-color: #0a0a0a; 
+            background-image: url('map/cover.webp'); 
+            background-size: cover; background-position: center; background-attachment: fixed; 
+        }
+
+        #game-window {
+            width: 1200px; height: 720px; background: #000;
+            border: 3px solid var(--gold); border-radius: 8px;
+            box-shadow: 0 15px 50px rgba(0,0,0,0.9);
+            display: flex; flex-direction: column; overflow: hidden; position: relative;
+        }
+
+        #master-nav {
+            height: 60px; background: #1a1511; border-bottom: 2px solid var(--gold);
+            display: flex; align-items: center; padding: 0 30px; gap: 20px; z-index: 100; flex-shrink: 0;
+        }
+        .nav-brand { color: var(--gold); font-family: 'Cinzel', serif; font-size: 1.4rem; margin-right: auto; font-weight: bold; letter-spacing: 2px; }
+        .nav-btn {
+            text-decoration: none; border: 1px solid transparent; color: var(--text);
+            font-size: 1.1rem; padding: 6px 15px; cursor: pointer; transition: 0.3s; font-family: 'Noto Serif TC', serif;
+        }
+        .nav-btn:hover { border-bottom: 1px solid var(--gold); color: #fff; }
+        .nav-btn.active { border: 1px solid var(--gold); background: rgba(212, 175, 55, 0.1); border-radius: 4px; color: var(--gold); }
+
+        #viewer-area { flex: 1; position: relative; width: 100%; height: 100%; overflow: hidden; }
+        .scene-background { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('map/arena.webp'); background-size: cover; background-position: center; filter: brightness(0.5); z-index: 0; transform: scale(1.02); }
+        .game-ui { position: relative; z-index: 10; width: 100%; height: 100%; display: flex; justify-content: space-between; }
+        
+        .character-display-zone { position: relative; flex: 1; height: 100%; pointer-events: none; }
+        .character-sprite { 
+            position: absolute; opacity: 0; transform: translateX(-20px); transition: 0.5s ease; 
+            filter: drop-shadow(0 0 20px rgba(0,0,0,0.8)); z-index: 1; 
+        }
+        .character-sprite.active { opacity: 1; transform: translateX(0); }
+        
+        .npc-story-overlay { 
+            position: absolute; right: 30px; bottom: 40px; 
+            width: 340px; max-height: 520px; overflow-y: auto;
+            background: rgba(10, 8, 6, 0.95); border: 1px solid var(--gold); padding: 25px; 
+            color: var(--text); border-radius: 4px; 
+            box-shadow: 0 0 30px rgba(0,0,0,0.9), inset 0 0 15px rgba(212, 175, 55, 0.1); 
+            opacity: 0; transform: translateX(20px); transition: all 0.4s ease; 
+            text-align: justify; line-height: 1.7; font-size: 0.95rem; pointer-events: auto; z-index: 2; 
+        }
+        .npc-story-overlay::-webkit-scrollbar { width: 4px; }
+        .npc-story-overlay::-webkit-scrollbar-thumb { background: rgba(212, 175, 55, 0.4); }
+        .npc-story-overlay.active { opacity: 1; transform: translateX(0); }
+        .npc-story-overlay strong { color: var(--gold); font-size: 1.2rem; font-family: 'Cinzel', 'Noto Serif TC', serif; display: block; border-bottom: 1px solid rgba(212, 175, 55, 0.3); padding-bottom: 8px; margin-bottom: 12px; letter-spacing: 1px; }
+
+        .info-panel { width: 420px; height: 100%; background: var(--bg-dark); border-left: 2px solid var(--gold); display: flex; box-shadow: -15px 0 40px rgba(0,0,0,0.9); flex-shrink: 0; z-index: 3; }
+        .bookmarks { width: 50px; height: 100%; background: #2c251d; display: flex; flex-direction: column; border-right: 1px solid var(--gold); }
+        .bookmark-btn { writing-mode: vertical-lr; padding: 18px 10px; color: var(--gold); cursor: pointer; border-bottom: 1px solid rgba(212, 175, 55, 0.2); opacity: 0.7; letter-spacing: 3px; font-weight: bold; transition: 0.3s; font-size: 0.85rem; }
+        .bookmark-btn:hover { opacity: 1; background: rgba(212, 175, 55, 0.1); }
+        .bookmark-btn.active { opacity: 1; background: rgba(212, 175, 55, 0.2); border-left: 4px solid var(--gold); } 
+        
+        .scroll-content { flex: 1; padding: 20px; overflow-y: auto; color: var(--text); line-height: 1.8; }
+        .scroll-content::-webkit-scrollbar { width: 6px; }
+        .scroll-content::-webkit-scrollbar-thumb { background: rgba(212, 175, 55, 0.5); border-radius: 3px; }
+        
+        .info-panel h2 { font-family: 'Cinzel', serif; color: var(--gold); border-bottom: 1px solid var(--gold); margin: 0 0 15px 0; font-size: 1.5rem; }
+        .section { display: none; animation: fadeInPage 0.4s ease; }
+        .section.active { display: block; }
+        
+        .interaction-card { background: rgba(255,255,255,0.03); padding: 12px; border: 1px solid rgba(212, 175, 55, 0.1); margin-bottom: 12px; cursor: pointer; transition: 0.3s; }
+        .interaction-card:hover { border-color: var(--gold); background: rgba(212, 175, 55, 0.1); box-shadow: 0 0 15px rgba(212, 175, 55, 0.2); }
+        .interaction-card strong { color: var(--gold); display: block; margin-bottom: 5px; font-size: 1.05rem; }
+        
+        .facility-card { background: rgba(0,0,0,0.35); padding: 12px; border-left: 3px solid var(--gold); margin-bottom: 14px; border-radius: 2px; }
+        .facility-card h4 { margin: 0 0 6px 0; color: #ffeb99; font-size: 1rem; }
+        .facility-desc { font-size: 0.9rem; line-height: 1.6; margin-bottom: 8px; color: #cfc2aa; text-align: justify; }
+        .facility-rule { font-size: 0.85rem; color: #d4af37; background: rgba(212, 175, 55, 0.08); padding: 6px 8px; border-radius: 3px; border-left: 2px solid #a88a44; line-height: 1.5; }
+
+        .sub-header { color: #b0965b; border-bottom: 1px dashed #b0965b; padding-bottom: 4px; margin: 15px 0 10px 0; font-size: 1rem; }
+        .lore-desc { font-size: 0.95rem; text-align: justify; margin-bottom: 15px; padding-top: 8px; border-top: 1px dashed rgba(212, 175, 55, 0.3); }
+        @keyframes fadeInPage { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+<div id="game-window">
+    <nav id="master-nav">
+        <div class="nav-brand">黑曜黎明：奧克塔卡之誓冒險札記</div>
+        <a href="index.html" class="nav-btn active">回地圖</a>
+        <a href="item.html" class="nav-btn">獲得物品</a> 
+        <a href="journals.html" class="nav-btn">冒險筆記</a>
+    </nav>
+
+    <main id="viewer-area">
+        <div class="scene-background"></div>
+        <div class="game-ui">
+            <div class="character-display-zone">
+                <img id="npc-sprite" class="character-sprite" src="" alt="">
+                <div id="story-box" class="npc-story-overlay"></div>
+            </div>
+
+            <div class="info-panel">
+                <div class="bookmarks">
+                    <div class="bookmark-btn active" onclick="showTab('intro')">競技場</div>
+                    <div class="bookmark-btn" onclick="showTab('facilities')">身手訓練</div>
+                    <div class="bookmark-btn" onclick="showTab('members')">駐場人物</div>
+                </div>
+
+                <div class="scroll-content">
+                    <div id="intro" class="section active">
+                        <h2>曜日競技場</h2>
+                        <div class="lore-desc">
+                            <p>穿過巨大的青銅拱門，曜日競技場的內部開闊得令人屏息。這裡是由紅色的火山碎屑岩與厚實的土坯砌成環形看台。</p>
+                            <p>在沒有神聖祭典或官方賽事的日子裡，陽光毫無遮蔽地灑在中央開闊的黃沙廣場上，充斥著孩童的笑鬧、居民的吆喝與武器碰撞的鏗鏘聲。</p>
+                            <p>高聳的岩壁上嵌著幾枚象徵黃金太陽的巨大石環——那是進行神聖球戲的標門。空氣中瀰漫著烤可可豆、汗水與打磨黑曜石的微塵氣味。這裡是奧克塔卡要塞中，唯一能讓平民、傭兵與士兵平起平坐、一同揮灑汗水與歡笑的地方。</p>
+                        </div>
+                    </div>
+
+                    <div id="facilities" class="section">
+                        <h2>場地訓練與遊樂</h2>
+                        
+                        <div class="sub-header">平民遊樂與身手鍛鍊區</div>
+                        <div class="facility-card">
+                            <h4>蹴球場</h4>
+                            <div class="facility-desc">民眾租借沉重的天然橡膠球，嘗試不用雙手，僅用髖部或膝蓋將球撞入高牆上的石環中。</div>
+                        </div>
+
+                        <div class="facility-card">
+                            <h4>高空攀爬架</h4>
+                            <div class="facility-desc">模仿古代骷髏祭壇形狀搭建的巨大木製攀爬網，供人比賽敲響頂端的銅鈴。</div>
+                        </div>
+
+                        <div class="sub-header">傭兵與民兵訓練區</div>
+                        <div class="facility-card">
+                            <h4>黑曜石樁打擊區</h4>
+                            <div class="facility-desc">立著數十個用厚麻繩與硬木包裹的擊打樁，供民兵與冒險者打磨劈砍與碎擊手感。</div>
+                        </div>
+
+                        <div class="facility-card">
+                            <h4>射擊靶場</h4>
+                            <div class="facility-desc">庫塔卡風格的遠程靶場，提供草編標靶練習破甲投擲。</div>
+                        </div>
+                    </div>
+
+                    <div id="members" class="section">
+                        <h2>駐場人物</h2>
+                        <div class="lore-desc">
+                            <p>點擊人物名牌可檢視立繪與深度情報。</p>
+                        </div>
+                        
+                        <div class="interaction-card" onclick="loadNpc('osomalli')">
+                            <strong>「老奧索」奧索馬利</strong>
+                            <span>蹴球指導</span>
+                        </div>
+                        
+                        <div class="interaction-card" onclick="loadNpc('shaka')">
+                            <strong>「斷尾」沙卡</strong>
+                            <span>競技場衛兵長</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    const npcData = {
+        osomalli: {
+            name: "「老奧索」奧索馬利 (🔒)",
+            title: "蹴球指導",
+            img: "npc/osomalli.webp",
+            isHorizontal: false,
+            bg: null,
+            story: "🔒"
+        },
+        shaka: {
+            name: "「斷尾」沙卡",
+            title: "守衛長",
+            img: "npc/shaka.webp",
+            isHorizontal: false,
+            bg: null,
+            story: "「在庫塔卡，我們用鮮血決定誰是奴隸；在曜日競技場，我用這把黑曜石劍告訴你們，誰才是這裡的規矩。把武器收起來，否則下一個被抬出去做成祭品的就是你。」<br><br><strong>【情報】</strong>🔒（未曾深入交談）"
+        }
+    };
+
+    let defaultSceneBg = ""; 
+    window.addEventListener('DOMContentLoaded', () => {
+        const bgEl = document.querySelector('.scene-background');
+        if (bgEl) {
+            defaultSceneBg = window.getComputedStyle(bgEl).backgroundImage.replace(/url\(['"]?(.*?)['"]?\)/i, '$1');
+        }
+    });
+
+    function showTab(id) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.bookmark-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        event.currentTarget.classList.add('active');
+        
+        document.getElementById('npc-sprite').classList.remove('active');
+        document.getElementById('story-box').classList.remove('active');
+
+        const sceneBg = document.querySelector('.scene-background');
+        if(sceneBg && defaultSceneBg) {
+            sceneBg.style.backgroundImage = `url('${defaultSceneBg}')`;
+        }
+    }
+
+    function loadNpc(key) {
+        const sprite = document.getElementById('npc-sprite');
+        const storyBox = document.getElementById('story-box');
+        const sceneBg = document.querySelector('.scene-background'); 
+        const data = npcData[key];
+        
+        sprite.classList.remove('active');
+        storyBox.classList.remove('active');
+        
+        setTimeout(() => {
+            sprite.src = data.img;
+            
+            if (sceneBg) {
+                if (data.bg) {
+                    sceneBg.style.backgroundImage = `url('${data.bg}')`;
+                } else if (defaultSceneBg) {
+                    sceneBg.style.backgroundImage = `url('${defaultSceneBg}')`;
+                }
+            }
+
+            if (data.isHorizontal) {
+                sprite.style.maxWidth = '950px';
+                sprite.style.width = '950px';
+                sprite.style.height = '100%';
+                sprite.style.left = '0px';
+                sprite.style.bottom = '0px';
+                sprite.style.objectFit = 'cover';
+                sprite.style.objectPosition = '85% center';
+                sprite.style.zIndex = '0';
+            } else {
+                sprite.style.maxWidth = '550px';
+                sprite.style.width = 'auto';
+                sprite.style.height = '100%';
+                sprite.style.left = '40px';
+                sprite.style.bottom = '0px';
+                sprite.style.objectFit = 'contain';
+                sprite.style.objectPosition = 'bottom left';
+                sprite.style.zIndex = '1';
+            }
+            
+            storyBox.innerHTML = `<strong>${data.name} <span style="font-size:0.85rem; color:#888; font-family:'Noto Serif TC';">| ${data.title}</span></strong>${data.story}`;
+            sprite.classList.add('active');
+            storyBox.classList.add('active');
+        }, 250);
+    }
+</script>
+</body>
+</html>
